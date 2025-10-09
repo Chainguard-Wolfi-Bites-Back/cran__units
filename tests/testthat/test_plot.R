@@ -98,4 +98,61 @@ test_that("axis limits can be changed", {
   vdiffr::expect_doppelganger("ggplot2 limits other units", p4)
 })
 
+test_that("ranges are correctly computed", {
+  skip_if_not_installed("vdiffr")
+  skip_if_not_installed("ggplot2", "3.5.0")
+  library(ggplot2)
+
+  p0 <- data.frame(x = 0, y = make_units(m) * c(1, 2)) |>
+    ggplot() + aes(x, y) + geom_point()
+
+  p <- data.frame(x = 0, y = make_units(m) * 1) |>
+    ggplot() + aes(x, y) + geom_point()
+  p1 <- p + geom_point(data = data.frame(x = 0, y = make_units(mm) * 2000))
+  p2 <- p + geom_point(data = data.frame(x = 0, y = make_units(m)  * 2))
+  p3 <- p + geom_point(data = data.frame(x = 0, y = make_units(km) * 0.002))
+
+  vdiffr::expect_doppelganger("ggplot2 range", p0)
+  vdiffr::expect_doppelganger("ggplot2 range", p1)
+  vdiffr::expect_doppelganger("ggplot2 range", p2)
+  vdiffr::expect_doppelganger("ggplot2 range", p3)
+})
+
+test_that("additional continuous scales work as expected", {
+  skip_if_not_installed("vdiffr")
+  skip_if_not_installed("ggplot2", "3.5.0")
+  library(ggplot2)
+
+  dat <- data.frame(x=rnorm(100), y=rnorm(100), z=set_units(rnorm(100), m))
+
+  p1 <- ggplot(dat) + aes(x, y, color=z) +
+    geom_point() + scale_color_units(unit="in")
+
+  p2 <- ggplot(dat) + aes(x, y, fill=z) +
+    geom_point() + scale_fill_units(unit="mm")
+
+  p3 <- ggplot(dat) + aes(x, y, alpha=z) + geom_point() +
+    scale_alpha_units(unit="feet")
+
+  p4 <- ggplot(dat) + aes(x, y, size=z) +
+    geom_point() + scale_size_units(unit="km")
+
+  p5 <- ggplot(dat) + aes(x, y, size=z) +
+    geom_point() + scale_size_area_units(unit="km")
+
+  p6 <- ggplot(dat) + aes(x, y, size=z) +
+    geom_point() + scale_radius_units(unit="km")
+
+  p7 <- ggplot(dat) + aes(x, y, linewidth=z) +
+    geom_path() + scale_linewidth_units(unit="cm")
+
+  vdiffr::expect_doppelganger("ggplot2 other color", p1)
+  vdiffr::expect_doppelganger("ggplot2 other fill", p2)
+  vdiffr::expect_doppelganger("ggplot2 other alpha", p3)
+  vdiffr::expect_doppelganger("ggplot2 other size", p4)
+  vdiffr::expect_doppelganger("ggplot2 other size area", p5)
+  vdiffr::expect_doppelganger("ggplot2 other radius", p6)
+  vdiffr::expect_doppelganger("ggplot2 other linewidth", p7)
+})
+
 do.call(units_options, units:::.default_options)

@@ -10,6 +10,9 @@ test_that("we can multiply and divide symbolic units", {
   expect_equal(as.character(units(units:::.multiply_symbolic_units(1, m, m))), "m^2")
   expect_equal(as.character(units(units:::.divide_symbolic_units(1, m, s))), "m/s")
   expect_equal(as.character(units(units:::.divide_symbolic_units(1, units(units:::.divide_symbolic_units(1, m, s)), s))), "m/s^2")
+
+  expect_equal(as.character(units(as_units("1/m2/kg/L"))), "1/(m^2*kg*L)")
+  expect_equal(deparse_unit(as_units("1/m2/kg/L")), "m-2 kg-1 L-1")
 })
 
 test_that("we can simplify basic units", {
@@ -62,4 +65,30 @@ test_that("we can compare units", {
 test_that("symbolic_unit works", {
   expect_error(units:::symbolic_unit("qqq"))
   expect_silent(units:::symbolic_unit("m"))
+})
+
+test_that("convert_to_base works", {
+  u <- set_units(1:5, "kJ/kg", mode = "standard")
+  expect_equal(convert_to_base(u), set_units(u, "J/kg"))
+  expect_equal(convert_to_base(u, keep_fraction=FALSE), set_units(u, "Gy"))
+  expect_equal(convert_to_base(u, keep_fraction=TRUE, simplify=FALSE), set_units(u, "m^2*kg/s^2/kg"))
+  expect_equal(convert_to_base(u, keep_fraction=FALSE, simplify=FALSE), set_units(u, "m^2/s^2"))
+
+  u <- set_units(1:5, "celsius", mode = "standard")
+  expect_equal(convert_to_base(u), set_units(u, "K"))
+  expect_equal(convert_to_base(u, keep_fraction=FALSE), set_units(u, "K"))
+  expect_equal(convert_to_base(u, keep_fraction=TRUE, simplify=FALSE), set_units(u, "K"))
+  expect_equal(convert_to_base(u, keep_fraction=FALSE, simplify=FALSE), set_units(u, "K"))
+
+  u <- set_units(1:5, "kJ/(kg*fahrenheit)", mode = "standard")
+  expect_equal(convert_to_base(u), set_units(u, "J/kg/K"))
+  expect_equal(convert_to_base(u, keep_fraction=FALSE), set_units(u, "m^2/s^2/K"))
+  expect_equal(convert_to_base(u, keep_fraction=TRUE, simplify=FALSE), set_units(u, "m^2*kg/s^2/kg/K"))
+  expect_equal(convert_to_base(u, keep_fraction=FALSE, simplify=FALSE), set_units(u, "m^2/s^2/K"))
+
+  u <- set_units(1:5, "J/s", mode = "standard")
+  expect_equal(convert_to_base(u), set_units(u, "J/s"))
+  expect_equal(convert_to_base(u, keep_fraction=FALSE), set_units(u, "W"))
+  expect_equal(convert_to_base(u, keep_fraction=TRUE, simplify=FALSE), set_units(u, "m^2*kg/s^3"))
+  expect_equal(convert_to_base(u, keep_fraction=FALSE, simplify=FALSE), set_units(u, "m^2*kg/s^3"))
 })

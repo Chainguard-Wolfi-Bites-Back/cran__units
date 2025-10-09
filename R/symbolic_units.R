@@ -53,46 +53,48 @@ unitless <- .symbolic_units(vector("character"), vector("character"))
 
   for (i in seq_along(sym)) if (pwr[i] != 1)
     sym[i] <- paste(sym[i], pwr[i], sep = pwr_op)
-  paste0(sym, collapse = paste0(op, sep))
+
+  s <- matrix(c(sym, rep(paste0(op, sep), length(sym)-1), ""), nrow=length(sym))
+  if (!units_options("strict_tokenizer"))
+    s[sym >= "0" & sym <= "9", 2] <- ""
+  paste0(t(s), collapse="")
 }
 
 #' @export
 as.character.symbolic_units <- function(x, ...,
-		neg_power = get(".units.negative_power", envir = .units_options),
-		escape_units = FALSE, prod_sep = "*", plot_sep = "") {
+                                        neg_power = units_options("negative_power"),
+                                        escape_units = FALSE, prod_sep = "*", plot_sep = "") {
   sep <- plot_sep
 
-  numerator <- x$numerator
-  denominator <- x$denominator
+  numerator <- x$numerator[x$numerator != "1"]
+  denominator <- x$denominator[x$denominator != "1"]
   if (escape_units) {
     numerator <- unlist(Map(function(name) paste0("`", name, "`", sep = ""), numerator))
     denominator <- unlist(Map(function(name) paste0("`", name, "`", sep = ""), denominator))
   }
 
   if (x == unitless) { # xxx
-	 u <- if (escape_units)
-       unlist(Map(function(name) paste0("`", name, "`", sep = ""),
-	      units_options("unitless_symbol")))
-	 else
-	    units_options("unitless_symbol")
-	 return(u)
+    u <- if (escape_units)
+      unlist(Map(function(name) paste0("`", name, "`", sep = ""),
+                 units_options("unitless_symbol")))
+    else
+      units_options("unitless_symbol")
+    return(u)
   }
 
-  num_str <- if (length(numerator) > 0)
-      .pretty_print_sequence(numerator, prod_sep, FALSE, plot_sep)
-    else  { # only denominator:
-      if (! neg_power)
-	    "1" # 1/cm^2/h
-	  else
-	    character(0)
-    }
+  num_str <- denom_str <- character(0)
 
-  denom_str <- if (length(denominator) > 0) {
+  num_str <- if (length(numerator) > 0)
+    .pretty_print_sequence(numerator, prod_sep, FALSE, plot_sep)
+  else if (! neg_power) "1" # only denominator: 1/(cm^2*h)
+
+  if (length(denominator) > 0) {
     sep <- if (neg_power)
       paste0(prod_sep, plot_sep) else "/"
-    .pretty_print_sequence(denominator, sep, neg_power, plot_sep)
-  } else
-    character(0)
+    denom_str <- .pretty_print_sequence(denominator, prod_sep, neg_power, plot_sep)
+    if (!neg_power && length(unique(denominator)) > 1)
+      denom_str <- paste0("(", denom_str, ")")
+  }
 
   if (length(num_str) == 0)
     denom_str
@@ -107,9 +109,9 @@ as.character.symbolic_units <- function(x, ...,
   isFALSE <- function(x) is.logical(x) && length(x) == 1L && !is.na(x) && !x
 
   if (isFALSE(.units.simplify())) {
-  	value = unclass(value)
-	  units(value) = sym_units
-  	return(value)
+    value = unclass(value)
+    units(value) = sym_units
+    return(value)
   }
 
   # This is just a brute force implementation that takes each element in the
@@ -143,4 +145,58 @@ as.character.symbolic_units <- function(x, ...,
     new_numerator <- new_numerator[-delete_num]
 
   as_units(drop_units(value), .symbolic_units(new_numerator, new_denominator))
+}
+
+#' Convert units to their base units
+#'
+#' Convert the units of a \code{units} object to their base units, as defined by
+#' the udunits database (SI units).
+#'
+#' @param x object of class \code{units}.
+#' @param simplify logical; if TRUE (default), the resulting units are simplified.
+#' @param keep_fraction logical; if TRUE (default), the result is kept as a fraction.
+#'
+#' @return object of class \code{units} with units converted to base units.
+#' @export
+#'
+#' @examples
+#' x <- set_units(32, mJ/g)
+#' convert_to_base(x)
+#' convert_to_base(x, keep_fraction=FALSE)
+#' convert_to_base(x, simplify=FALSE)
+#' convert_to_base(x, simplify=FALSE, keep_fraction=FALSE)
+convert_to_base <- function(x, simplify = TRUE, keep_fraction = TRUE) {
+  stopifnot(inherits(x, "units"))
+
+  u_strBase <- function(u_str, simplify) {
+    u_new <- ud_parse(u_str, names=FALSE, definition=TRUE, ascii=TRUE)
+    u_new <- strsplit(x = u_new, split = " @ ")[[1]][1]
+    u_new <- strsplit(x = u_new, split = " ")[[1]]
+    u_new <- u_new[length(u_new)]
+
+    if (simplify)
+      u_new <- ud_parse(u_new, names=FALSE, definition=FALSE, ascii=TRUE)
+    gsub(".", " ", u_new, fixed = TRUE)
+  }
+
+  u <- vapply(units(x), paste0, character(1L), collapse = "*", recycle0=TRUE)
+  u[u == ""] <- "1"
+
+  u["numerator"]   <- sprintf("(%s)", u["numerator"])
+  u["denominator"] <- sprintf("(%s)", u["denominator"])
+
+  if (!keep_fraction) u <- paste(u, collapse = "/")
+
+  u_base <- vapply(u, u_strBase, character(1L), simplify = simplify)
+
+  if (keep_fraction) {
+    is_unitless <- u_base == "1"
+
+    u_base["numerator"]   <- sprintf("(%s)", u_base["numerator"])
+    u_base["denominator"] <- sprintf("(%s)-1", u_base["denominator"])
+
+    u_base <- paste(u_base[!is_unitless], collapse = " ")
+  }
+
+  set_units(x, u_base, mode = "standard")
 }
